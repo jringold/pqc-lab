@@ -4,8 +4,11 @@ Automated deployment scripts for a **post-quantum cryptography (PQC) PKI test la
 independent paths are provided — one Windows-native and one Linux-native — both producing a
 fully PQC-safe TLS 1.3 endpoint using NIST standards **FIPS 203 (ML-KEM)** and **FIPS 204 (ML-DSA)**.
 
-> **⚠️ Not for production.** Both paths use pre-release or experimental software components.
-> This lab is for testing and evaluation only.
+> **⚠️ Lab guidance.** This is a test/evaluation lab, not a production deployment guide.
+> Validate patch levels and hardening before any production use.
+
+> **July 14, 2026 update:** ML-KEM hybrid TLS is available in GA builds (Server 2025 + KB5099536,
+> Win11 24H2/25H2 + KB5101650). Insider builds are no longer required for the TLS key exchange path.
 
 ---
 
@@ -92,7 +95,7 @@ post-quantum key establishment, not just classical X25519.
 cd pqc-azure-deploy
 
 # 1. Edit configuration
-notepad 00-variables.ps1          # Set SUBSCRIPTION_ID, ADMIN_PASS, LOCATION
+notepad 00-variables.ps1          # Set SUBSCRIPTION_ID, ADMIN_PASS, LOCATION, DEPLOYMENT_MODE
 
 # 2. Prepare images (run on a local Hyper-V host, ~60 min each)
 .\00-prepare-image.ps1            # Server 2025 GA + KB5099536 or vNext 29550+ image
@@ -100,6 +103,9 @@ notepad 00-variables.ps1          # Set SUBSCRIPTION_ID, ADMIN_PASS, LOCATION
 
 # 3. Deploy infrastructure (VNet, NSG, up to 5 VMs)
 .\01-deploy-infrastructure.ps1
+
+# 3b. Verify server patch/build baseline before AD CS setup
+.\00-verify-patches.ps1
 
 # 4–10. Configure each layer in order
 .\02-config-dc.ps1
@@ -135,13 +141,16 @@ notepad 00-variables.ps1          # Set SUBSCRIPTION_ID, ADMIN_PASS, LOCATION
 cd pqc-hyperv-deploy
 
 # 1. Edit configuration (run as Administrator from Hyper-V host)
-notepad 00-variables.ps1          # Set BaseVhdPath, Win11BaseVhdPath, VmRootPath, passwords
+notepad 00-variables.ps1          # Set DeploymentMode, server image paths, Win11BaseVhdPath, VmRootPath, passwords
 
 # 2. Verify host readiness
 .\01-prereq-check.ps1
 
 # 3. Create VMs, networking, and apply static IPs (creates Win11 client if Win11BaseVhdPath exists)
 .\02-new-lab-vms.ps1
+
+# 3b. Verify server patch/build baseline before AD CS setup
+.\00-verify-patches.ps1
 
 # 4–9. Configure each layer in order
 .\03-config-dc.ps1
@@ -327,9 +336,9 @@ Windows Server vNext 29550+ remains the cleanest single-image option for CA + TL
 ## Security Notes
 
 - Default credentials in variable files are **placeholders only**. Change them before running.
-- The Root CA VM should be taken offline after signing the Issuing/Intermediate CA certificate.
+- The Root CA VM should be taken offline after signing the Issuing CA certificate.
 - NSGs (Azure) and internal Hyper-V switches limit exposure — do not expose lab VMs to the public internet.
-- Both paths use pre-release or experimental components and are **not suitable for production use**.
+- This lab is designed for evaluation; apply production hardening and governance before real-world deployment.
 
 ---
 
