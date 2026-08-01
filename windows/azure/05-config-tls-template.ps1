@@ -135,35 +135,35 @@ Log "Enrolling PQC Web Server certificate..."
 `$certStore   = "cert:\LocalMachine\My"
 
 # Use certreq via INF file for fine-grained control
-`$inf = @"
-[Version]
-Signature = "\$Windows NT\$"
+`$inf = @(
+    "[Version]",
+    "Signature = `"`$Windows NT`$`"",
+    "",
+    "[NewRequest]",
+    "Subject     = `"CN=`$hostname`"",
+    "KeyAlgorithm = ML-DSA",
+    "KeyLength    = 15616",
+    "HashAlgorithm = NoHash",
+    "MachineKeySet = True",
+    "RequestType = PKCS10",
+    "KeySpec = 2",
+    "ProviderName = `"ML-DSA:65#Microsoft Software Key Storage Provider`"",
+    "ProviderType = 0",
+    "SMIME = FALSE",
+    "Silent = TRUE",
+    "",
+    "[EnhancedKeyUsageExtension]",
+    "OID = 1.3.6.1.5.5.7.3.1 ; Server Authentication",
+    "",
+    "[RequestAttributes]",
+    "CertificateTemplate = PQCWebServer",
+    "",
+    "[Extensions]",
+    "2.5.29.17 = `"{text}dns=`$hostname&dns=webserver01`""
+) -join "`r`n"
 
-[NewRequest]
-Subject     = "CN=`$hostname"
-KeyAlgorithm = ML-DSA
-KeyLength    = 15616
-HashAlgorithm = NoHash
-MachineKeySet = True
-RequestType = PKCS10
-KeySpec = 2
-ProviderName = "ML-DSA:65#Microsoft Software Key Storage Provider"
-ProviderType = 0
-SMIME = FALSE
-Silent = TRUE
-
-[EnhancedKeyUsageExtension]
-OID = 1.3.6.1.5.5.7.3.1 ; Server Authentication
-
-[RequestAttributes]
-CertificateTemplate = PQCWebServer
-
-[Extensions]
-2.5.29.17 = "{text}dns=`$hostname&dns=webserver01"
-"@
-
-`$inf | Out-File -FilePath "C:\temp\pqc-tls.inf" -Encoding ascii -Force
 New-Item -ItemType Directory -Force -Path "C:\temp" | Out-Null
+`$inf | Out-File -FilePath "C:\temp\pqc-tls.inf" -Encoding ascii -Force
 
 certreq -new "C:\temp\pqc-tls.inf" "C:\temp\pqc-tls.req"
 certreq -submit -config "$VM_ISSUINGCA.$DOMAIN_NAME\PQCLab Issuing CA" "C:\temp\pqc-tls.req" "C:\temp\pqc-tls.cer"

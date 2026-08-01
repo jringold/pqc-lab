@@ -6,6 +6,7 @@
 |--------|---------|
 | `00-variables.ps1` | **Edit this first** — subscription ID, credentials, location, image names |
 | `00-prepare-image.ps1` | Prepare Server 2025 GA or vNext ISO → custom Azure Compute Gallery image (also adapt for Win11 ISO) |
+| `00-verify-patches.ps1` | Verify required server patch level on deployed VMs (KB5099536 / build checks) |
 | `01-deploy-infrastructure.ps1` | Deploy VNet, NSG, storage, and up to 5 VMs (4 Server + Win11 client) |
 | `02-config-dc.ps1` | Promote Domain Controller, create AD forest |
 | `03-config-rootca.ps1` | Install Root CA with ML-DSA-87 |
@@ -40,18 +41,19 @@
 ## Execution Order
 
 ```
-1.  Edit 00-variables.ps1        (set subscription, credentials, image versions)
+1.  Edit 00-variables.ps1        (set subscription, credentials, image versions, DEPLOYMENT_MODE)
 2.  Run 00-prepare-image.ps1     (Server GA or vNext — 30-60 min for VHD upload)
 2b. Run 00-prepare-image.ps1     (Win11 24H2 GA — adapt script for Win11 ISO + client OS image def)
 3.  Run 01-deploy-infrastructure.ps1
-4.  Run 02-config-dc.ps1
-5.  Run 03-config-rootca.ps1
-6.  Run 03b-copy-certs-between-vms.ps1
-7.  Run 04-config-issuingca.ps1
-8.  Run 05-config-tls-template.ps1
-9.  Run 06-enable-mlkem-tls.ps1
-10. Run 07-verify.ps1
-11. Run 08-config-win11-client.ps1   ← PQC TLS browser verification
+4.  Run 00-verify-patches.ps1    (confirm server patch/build baseline before AD CS setup)
+5.  Run 02-config-dc.ps1
+6.  Run 03-config-rootca.ps1
+7.  Run 03b-copy-certs-between-vms.ps1
+8.  Run 04-config-issuingca.ps1
+9.  Run 05-config-tls-template.ps1
+10. Run 06-enable-mlkem-tls.ps1
+11. Run 07-verify.ps1
+12. Run 08-config-win11-client.ps1   ← PQC TLS browser verification
 ```
 
 > **Note:** Step 2b is independent of step 2 — both uploads can run in parallel on
