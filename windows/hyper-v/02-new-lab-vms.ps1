@@ -57,20 +57,62 @@ foreach ($vm in $vmMap) {
     }
 }
 
+# Win11 client VM — uses a separate base image (Win11 Insider Preview VHDX)
+Write-Step "Creating Win11 client VM ($VmClient)..."
+if (-not (Test-Path $Win11BaseVhdPath)) {
+    Write-Warning "Win11 base image not found at: $Win11BaseVhdPath"
+    Write-Warning "Skipping Win11 client VM creation. Prepare the image and re-run, or create the VM manually."
+    Write-Warning "Required: Win11 Insider Preview ISO (build 26100.8514+) → Hyper-V VM → Sysprep → VHDX"
+} else {
+    $clientVmPath = Join-Path $VmRootPath $VmClient
+    $clientVhdPath = Join-Path $clientVmPath "$VmClient.vhdx"
+
+    Ensure-Folder -Path $clientVmPath
+
+    if (-not (Test-Path $clientVhdPath)) {
+        New-VHD -Path $clientVhdPath -ParentPath $Win11BaseVhdPath -Differencing | Out-Null
+    }
+
+    if (-not (Get-VM -Name $VmClient -ErrorAction SilentlyContinue)) {
+        New-VM -Name $VmClient -Generation $VmGeneration -MemoryStartupBytes $MemoryStartupBytes `
+            -VHDPath $clientVhdPath -Path $clientVmPath -SwitchName $VMSwitchName | Out-Null
+        Set-VMProcessor -VMName $VmClient -Count $CpuCount
+        Set-VMMemory -VMName $VmClient -DynamicMemoryEnabled $true `
+            -MinimumBytes $MemoryMinimumBytes -MaximumBytes $MemoryMaximumBytes -StartupBytes $MemoryStartupBytes
+        Enable-VMIntegrationService -VMName $VmClient -Name "Guest Service Interface" -ErrorAction SilentlyContinue | Out-Null
+        Write-Host "Created VM: $VmClient"
+    }
+
+    if ((Get-VM -Name $VmClient).State -ne "Running") {
+        Start-VM -Name $VmClient | Out-Null
+    }
+}
+
 Write-Step "Waiting for VMs to be reachable via PowerShell Direct..."
 foreach ($vm in @($VmDc, $VmRootCa, $VmIssuingCa, $VmWeb)) {
     Wait-VMReadyForDirect -VmName $vm
     Write-Host "Ready: $vm"
 }
 
+# Win11 client readiness check (only if the VM was created)
+if (Get-VM -Name $VmClient -ErrorAction SilentlyContinue) {
+    Wait-VMReadyForDirect -VmName $VmClient
+    Write-Host "Ready: $VmClient"
+}
+
 Write-Step "Applying static network config + hostnames..."
 
 $netConfig = @(
-    @{ Vm = $VmDc; Name = "dc01";       Ip = $DcIp;       Dns = @($DcIp) },
-    @{ Vm = $VmRootCa; Name = "rootca"; Ip = $RootCaIp;   Dns = @($DcIp) },
-    @{ Vm = $VmIssuingCa; Name = "issuingca"; Ip = $IssuingCaIp; Dns = @($DcIp) },
-    @{ Vm = $VmWeb; Name = "webserver01"; Ip = $WebIp;    Dns = @($DcIp) }
+    @{ Vm = $VmDc;        Name = "dc01";        Ip = $DcIp;       Dns = @($DcIp) },
+    @{ Vm = $VmRootCa;    Name = "rootca";       Ip = $RootCaIp;   Dns = @($DcIp) },
+    @{ Vm = $VmIssuingCa; Name = "issuingca";    Ip = $IssuingCaIp; Dns = @($DcIp) },
+    @{ Vm = $VmWeb;       Name = "webserver01";  Ip = $WebIp;      Dns = @($DcIp) }
 )
+
+# Win11 client gets a static IP too (domain join requires stable addressing)
+if (Get-VM -Name $VmClient -ErrorAction SilentlyContinue) {
+    $netConfig += @{ Vm = $VmClient; Name = "win11client"; Ip = $ClientIp; Dns = @($DcIp) }
+}
 
 foreach ($entry in $netConfig) {
     Invoke-InVmLocal -VmName $entry.Vm -ArgumentList $entry.Name, $entry.Ip, $GatewayIp, $entry.Dns -ScriptBlock {

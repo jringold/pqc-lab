@@ -37,6 +37,7 @@ $VmRootCa = "pqc-rootca"
 $VmDc = "pqc-dc01"
 $VmIssuingCa = "pqc-issuingca"
 $VmWeb = "pqc-web01"
+$VmClient = "pqc-win11client"   # Windows 11 Insider Preview PQC test client
 
 # VM sizing
 $VmGeneration = 2
@@ -48,4 +49,10 @@ $DiffDiskSizeBytes = 128GB
 
 # Optional host-only setup defaults
 $EnableHostNat = $true
+
+# Windows 11 Insider Preview client image
+# Separate base VHDX required — Win11 Insider Preview ISO (build 26100.8514+),
+# sysprepped with local Administrator account set, saved as a VHDX on the host.
+$Win11BaseVhdPath = "D:\HyperV\BaseImages\win11-26100-insider-gold.vhdx"
+$ClientIp = "10.10.0.50"
 
