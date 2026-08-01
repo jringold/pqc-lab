@@ -4,12 +4,13 @@
 #
 # Creates:
 #   - Resource group
-#   - Virtual network (10.0.0.0/16) with two subnets: mgmt (10.0.1.0/24)
-#     and web (10.0.2.0/24)
+#   - Virtual network (10.0.0.0/16) with three subnets:
+#       mgmt (10.0.1.0/24), web (10.0.2.0/24), client (10.0.3.0/24)
 #   - NSG: SSH (22) from ADMIN_IP, HTTP/HTTPS (80/443) from internet to web
-#   - Two Ubuntu 26.04 LTS VMs:
+#   - Three Ubuntu 26.04 LTS VMs:
 #       pq-ca-vm   — CA server (mgmt subnet, no public HTTPS)
 #       pq-web-vm  — Apache web server (web subnet, public HTTP/HTTPS)
+#       pq-client-vm — Ubuntu desktop-style TLS client test host
 #   - Cloud-init user data injected into each VM
 #
 # Usage:
@@ -100,6 +101,13 @@ az network vnet subnet create \
   --name web-subnet \
   --address-prefix 10.0.2.0/24 \
   --output none
+
+az network vnet subnet create \
+  --resource-group "$RG" \
+  --vnet-name "$VNET" \
+  --name client-subnet \
+  --address-prefix 10.0.3.0/24 \
+  --output none
 success "VNet ready"
 
 # ---------------------------------------------------------------------------
@@ -138,6 +146,16 @@ az network nsg rule create \
   --protocol Tcp --direction Inbound --access Allow \
   --source-address-prefixes '*' \
   --destination-port-ranges 80 --output none
+
+# --- Client NSG: SSH only from admin IP ---
+CLIENT_NSG="${PREFIX}-client-nsg"
+az network nsg create --resource-group "$RG" --name "$CLIENT_NSG" --output none
+az network nsg rule create \
+  --resource-group "$RG" --nsg-name "$CLIENT_NSG" \
+  --name AllowSSH --priority 100 \
+  --protocol Tcp --direction Inbound --access Allow \
+  --source-address-prefixes "$ADMIN_IP" \
+  --destination-port-ranges 22 --output none
 success "NSGs ready"
 
 # ---------------------------------------------------------------------------
@@ -152,6 +170,10 @@ az network public-ip create \
   --resource-group "$RG" --name "${PREFIX}-web-pip" \
   --sku Standard --allocation-method Static \
   --dns-name "${PREFIX}-web" --output none
+az network public-ip create \
+  --resource-group "$RG" --name "${PREFIX}-client-pip" \
+  --sku Standard --allocation-method Static \
+  --dns-name "${PREFIX}-client" --output none
 success "Public IPs ready"
 
 # ---------------------------------------------------------------------------
@@ -170,6 +192,12 @@ az network nic create \
   --network-security-group "$WEB_NSG" \
   --public-ip-address "${PREFIX}-web-pip" \
   --output none
+az network nic create \
+  --resource-group "$RG" --name "${PREFIX}-client-nic" \
+  --vnet-name "$VNET" --subnet client-subnet \
+  --network-security-group "$CLIENT_NSG" \
+  --public-ip-address "${PREFIX}-client-pip" \
+  --output none
 success "NICs ready"
 
 # ---------------------------------------------------------------------------
@@ -178,19 +206,23 @@ success "NICs ready"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CA_INIT="${SCRIPT_DIR}/cloud-init-ca.yml"
 WEB_INIT="${SCRIPT_DIR}/cloud-init-web.yml"
+CLIENT_INIT="${SCRIPT_DIR}/cloud-init-client.yml"
 
 [[ -f "$CA_INIT"  ]] || error "Missing cloud-init file: $CA_INIT"
 [[ -f "$WEB_INIT" ]] || error "Missing cloud-init file: $WEB_INIT"
+[[ -f "$CLIENT_INIT" ]] || error "Missing cloud-init file: $CLIENT_INIT"
 
 # Substitute PROVIDER placeholder
 CA_INIT_TMP="$(mktemp)"
 WEB_INIT_TMP="$(mktemp)"
+CLIENT_INIT_TMP="$(mktemp)"
 sed "s/{{PROVIDER}}/${PROVIDER}/g; \
      s/{{ORG_NAME}}/${ORG_NAME}/g; \
      s/{{ORG_COUNTRY}}/${ORG_COUNTRY}/g; \
      s/{{ORG_STATE}}/${ORG_STATE}/g" \
   "$CA_INIT" > "$CA_INIT_TMP"
 cp "$WEB_INIT" "$WEB_INIT_TMP"
+cp "$CLIENT_INIT" "$CLIENT_INIT_TMP"
 
 # ---------------------------------------------------------------------------
 # 7. Virtual Machines
@@ -221,7 +253,20 @@ az vm create \
   --output none
 success "Web VM created"
 
-rm -f "$CA_INIT_TMP" "$WEB_INIT_TMP"
+info "Creating Client VM (this takes 3–5 minutes)"
+az vm create \
+  --resource-group "$RG" \
+  --name "${PREFIX}-client-vm" \
+  --nics "${PREFIX}-client-nic" \
+  --image "$UBUNTU_IMAGE" \
+  --size "$VM_SIZE" \
+  --admin-username "$ADMIN_USER" \
+  --generate-ssh-keys \
+  --custom-data "@${CLIENT_INIT_TMP}" \
+  --output none
+success "Client VM created"
+
+rm -f "$CA_INIT_TMP" "$WEB_INIT_TMP" "$CLIENT_INIT_TMP"
 
 # ---------------------------------------------------------------------------
 # 8. Output connection info
@@ -232,6 +277,9 @@ CA_IP=$(az network public-ip show \
 WEB_IP=$(az network public-ip show \
   --resource-group "$RG" --name "${PREFIX}-web-pip" \
   --query ipAddress -o tsv)
+CLIENT_IP=$(az network public-ip show \
+  --resource-group "$RG" --name "${PREFIX}-client-pip" \
+  --query ipAddress -o tsv)
 
 echo
 echo "============================================================"
@@ -239,6 +287,7 @@ echo "  DEPLOYMENT COMPLETE"
 echo "============================================================"
 echo "  CA VM  : ssh ${ADMIN_USER}@${CA_IP}"
 echo "  Web VM : ssh ${ADMIN_USER}@${WEB_IP}"
+echo "  Client : ssh ${ADMIN_USER}@${CLIENT_IP}"
 echo "  Web URL: https://${WEB_IP}  (after cert deployment)"
 echo
 echo "  Provider selected: ${PROVIDER}"
@@ -254,6 +303,7 @@ echo "============================================================"
 cat > "${SCRIPT_DIR}/.deploy-state" << EOF
 CA_IP=${CA_IP}
 WEB_IP=${WEB_IP}
+CLIENT_IP=${CLIENT_IP}
 ADMIN_USER=${ADMIN_USER}
 PREFIX=${PREFIX}
 RG=${RG}

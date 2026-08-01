@@ -7,12 +7,16 @@
 #
 # What it does:
 #   1. Sources .deploy-state (output of 01-azure-infra.sh)
-#   2. Waits for cloud-init to finish on both VMs
+#   2. Waits for cloud-init to finish on all three VMs
 #   3. Copies scripts 02-05 to the CA VM
 #   4. Runs 02-install-provider.sh on the CA VM
 #   5. Runs 03-build-ca.sh on the CA VM
 #   6. Runs 04-issue-server-cert.sh on the CA VM (pushes certs to web VM)
 #   7. Runs 05-verify-tls.sh on the CA VM against the web VM
+#   8. Copies scripts 02 and 06 to the client VM
+#   9. Runs 02-install-provider.sh on the client VM
+#  10. Trusts Root CA cert on the client VM
+#  11. Runs 06-client-verify.sh from client VM against web VM
 #
 # Usage:
 #   ./01-azure-infra.sh                  # provision VMs
@@ -42,17 +46,24 @@ source "$STATE_FILE"
 # Allow environment overrides
 CA_IP="${CA_IP}"
 WEB_IP="${WEB_IP}"
+CLIENT_IP="${CLIENT_IP}"
 ADMIN_USER="${ADMIN_USER:-azureuser}"
 PROVIDER="${PROVIDER:-liboqs}"
 DOMAIN="${DOMAIN:-$WEB_IP}"  # Default domain = web VM IP (IP-SAN cert)
 SSH_KEY="${SSH_KEY:-~/.ssh/id_rsa}"
 CLOUD_INIT_TIMEOUT="${CLOUD_INIT_TIMEOUT:-900}"  # 15 min max
 
+[[ -n "${CA_IP:-}" ]] || error "CA_IP missing in .deploy-state"
+[[ -n "${WEB_IP:-}" ]] || error "WEB_IP missing in .deploy-state"
+[[ -n "${CLIENT_IP:-}" ]] || error "CLIENT_IP missing in .deploy-state"
+
 SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=15 -o BatchMode=yes"
 [[ -f "$SSH_KEY" ]] && SSH_OPTS="$SSH_OPTS -i $SSH_KEY"
 
 ssh_ca()  { ssh  $SSH_OPTS "${ADMIN_USER}@${CA_IP}"  "$@"; }
 scp_to_ca() { scp $SSH_OPTS "$1" "${ADMIN_USER}@${CA_IP}:$2"; }
+ssh_client() { ssh $SSH_OPTS "${ADMIN_USER}@${CLIENT_IP}" "$@"; }
+scp_to_client() { scp $SSH_OPTS "$1" "${ADMIN_USER}@${CLIENT_IP}:$2"; }
 
 # ---------------------------------------------------------------------------
 wait_for_cloud_init() {
@@ -63,7 +74,7 @@ wait_for_cloud_init() {
 
   info "Waiting for cloud-init on ${LABEL} (${HOST})..."
   while ! ssh $SSH_OPTS "${ADMIN_USER}@${HOST}" \
-      "test -f /tmp/.cloud-init-web-status || test -f /opt/pq-ca-setup/.cloud-init-status" \
+      "test -f /tmp/.cloud-init-web-status || test -f /tmp/.cloud-init-client-status || test -f /opt/pq-ca-setup/.cloud-init-status" \
       2>/dev/null; do
     if (( ELAPSED >= CLOUD_INIT_TIMEOUT )); then
       error "Cloud-init timed out on ${LABEL} after ${ELAPSED}s"
@@ -81,14 +92,16 @@ echo "================================================================"
 echo "  PQ CA Remote Deployment Orchestrator"
 echo "  CA VM   : ${ADMIN_USER}@${CA_IP}"
 echo "  Web VM  : ${ADMIN_USER}@${WEB_IP}"
+echo "  Client  : ${ADMIN_USER}@${CLIENT_IP}"
 echo "  Provider: ${PROVIDER}"
 echo "  Domain  : ${DOMAIN}"
 echo "================================================================"
 
 # ---------------------------------------------------------------------------
-step "Step 1: Wait for cloud-init on both VMs"
+step "Step 1: Wait for cloud-init on all VMs"
 wait_for_cloud_init "$CA_IP"  "CA VM"
 wait_for_cloud_init "$WEB_IP" "Web VM"
+wait_for_cloud_init "$CLIENT_IP" "Client VM"
 
 # ---------------------------------------------------------------------------
 step "Step 2: Copy scripts to CA VM"
@@ -132,12 +145,42 @@ ssh_ca "PQ_PROVIDER=${PROVIDER} \
           --target ${WEB_IP} \
           --ca-cert /opt/pq-ca/root-ca/certs/root-ca.cert.pem"
 
+# ---------------------------------------------------------------------------
+step "Step 7: Copy scripts to Client VM"
+for SCRIPT in 02-install-provider.sh 06-client-verify.sh; do
+  scp_to_client "${SCRIPT_DIR}/${SCRIPT}" "/tmp/${SCRIPT}"
+done
+ssh_client "chmod +x /tmp/02-install-provider.sh /tmp/06-client-verify.sh"
+success "Client scripts uploaded"
+
+# ---------------------------------------------------------------------------
+step "Step 8: Install PQ provider on Client VM"
+ssh_client "sudo mkdir -p /opt/pq-ca /opt/pq-ca-setup"
+ssh_client "sudo PQ_PROVIDER=${PROVIDER} bash /tmp/02-install-provider.sh"
+success "Client provider installed"
+
+# ---------------------------------------------------------------------------
+step "Step 9: Trust Root CA on Client VM"
+TMP_ROOT_CA="$(mktemp)"
+ssh_ca "sudo cat /opt/pq-ca/root-ca/certs/root-ca.cert.pem" > "$TMP_ROOT_CA"
+scp_to_client "$TMP_ROOT_CA" "/tmp/pq-root-ca.crt"
+rm -f "$TMP_ROOT_CA"
+ssh_client "sudo cp /tmp/pq-root-ca.crt /usr/local/share/ca-certificates/pq-root-ca.crt && sudo update-ca-certificates"
+success "Root CA trusted on client"
+
+# ---------------------------------------------------------------------------
+step "Step 10: Run client-side TLS verification"
+ssh_client "PQ_PROVIDER=${PROVIDER} bash /tmp/06-client-verify.sh \
+              --target ${WEB_IP} \
+              --ca-cert /usr/local/share/ca-certificates/pq-root-ca.crt"
+
 echo
 echo "================================================================"
 echo "  DEPLOYMENT COMPLETE"
 echo "================================================================"
 echo "  CA VM  : ssh ${ADMIN_USER}@${CA_IP}"
 echo "  Web VM : https://${WEB_IP}  (self-signed PQ cert)"
+echo "  Client : ssh ${ADMIN_USER}@${CLIENT_IP}"
 echo
 echo "  To add your Root CA to local trust (Linux):"
 echo "    scp ${ADMIN_USER}@${CA_IP}:/opt/pq-ca/root-ca/certs/root-ca.cert.pem /tmp/"
