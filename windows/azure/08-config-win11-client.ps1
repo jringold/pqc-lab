@@ -6,15 +6,25 @@
 # Prerequisites:
 #   - Scripts 01 through 07 must be complete.
 #   - Win11 client VM must have been deployed (added by 01-deploy-infrastructure.ps1).
-#   - Win11 Insider Preview ISO (build 26100.8514+) must have been uploaded to the
-#     Compute Gallery as image definition $WIN11_IMAGE_DEF_NAME (same process as
-#     the Server vNext image — see 00-prepare-image.ps1 comments).
+#   - Win11 ISO (GA 24H2 + KB5101650, build 26100.8524+, or Insider Preview 26100.8514+)
+#     must have been uploaded to the Compute Gallery as image definition $WIN11_IMAGE_DEF_NAME
+#     (same process as the Server vNext image — see 00-prepare-image.ps1 comments).
 #
 # Why a separate Win11 client?
 #   - Verifies ML-KEM key exchange from the CLIENT side (server enabling alone is
 #     not sufficient; both endpoints must advertise ML-KEM support groups).
 #   - Provides an isolated test machine with Microsoft Edge for browser-level
 #     PQC TLS inspection via F12 DevTools → Security tab.
+#
+# Win11 ML-KEM build requirements (as of July 14, 2026 security updates):
+#   - Win11 24H2 / 25H2 GA:  KB5089573 (preview, build 26100.8524+) or KB5101650 (production)
+#   - Win11 26H1 GA:         KB5095091 or later
+#   - Win11 Insider Preview: build 26100.8514+ (still valid, predates GA enablement)
+#   Insider Preview is NO LONGER REQUIRED — GA Win11 24H2 with KB5101650 is sufficient.
+#
+# Server ML-KEM (TLS key exchange only):
+#   - Windows Server 2025 GA + KB5099536 (July 14, 2026) — same cmdlets, same groups
+#   - Windows Server vNext 29550+ — still valid single-image path
 # =============================================================================
 
 . "$PSScriptRoot\00-variables.ps1"
@@ -63,8 +73,8 @@ Start-Sleep -Seconds 90
 # =============================================================================
 Write-Host "=== Step 2: Enable ML-KEM TLS Groups on Win11 Client ===" -ForegroundColor Cyan
 
-# NOTE: Win11 Insider Preview build 26100.8514+ supports the same
-# Enable-TlsEccCurve / Set-TlsEccCurve cmdlets as Server vNext 29550+.
+# NOTE: As of July 14, 2026 (KB5101650), GA Win11 24H2/25H2 supports the same
+# Enable-TlsEccCurve / Set-TlsEccCurve cmdlets. Insider Preview no longer required.
 $mlkemClientScript = @"
 `$ErrorActionPreference = "Stop"
 function Log([string]`$m) { Write-Host "[ML-KEM-Client `$(Get-Date -Format HH:mm:ss)] `$m" }
@@ -99,9 +109,14 @@ Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders
 # Persist KEM group list to registry for resilience across policy refreshes
 `$regBase = "HKLM:\SYSTEM\CurrentControlSet\Control\Cryptography\Configuration\Local\SSL\00010003"
 if (-not (Test-Path `$regBase)) { New-Item -Path `$regBase -Force | Out-Null }
-Set-ItemProperty -Path `$regBase -Name "Functions" -Value (
-    "x25519_mlkem768\0secp256r1_mlkem768\0secp384r1_mlkem1024\0NistP384\0NistP256\0x25519"
-) -Type String
+Set-ItemProperty -Path `$regBase -Name "Functions" -Value @(
+    "x25519_mlkem768",
+    "secp256r1_mlkem768",
+    "secp384r1_mlkem1024",
+    "NistP384",
+    "NistP256",
+    "x25519"
+) -Type MultiString
 
 Log "Configured KEM priority:"
 Get-TlsEccCurve | Select-Object Name, Priority | Format-Table -AutoSize

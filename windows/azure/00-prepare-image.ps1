@@ -1,39 +1,92 @@
 # =============================================================================
-# PQC PKI Lab — Phase 0: Prepare Windows Server vNext Custom Azure Image
-# Run this script on a LOCAL Hyper-V host (NOT in Azure) that has the
-# Windows Server vNext Insider Preview ISO downloaded.
+# PQC PKI Lab — Phase 0: Prepare Windows Server Custom Azure Image
+# Supports two deployment modes controlled by $DEPLOYMENT_MODE in 00-variables.ps1:
 #
-# Prerequisites:
+#   GA    — Windows Server 2025 GA (build 26100.33158+, KB5099536 applied)
+#           RECOMMENDED: uses production OS, no Insider subscription required.
+#
+#   vNext — Windows Server vNext Insider Preview (build 29550+)
+#           All PQC features built-in; requires Windows Insider enrollment.
+#
+# Run this script on a LOCAL Hyper-V host (NOT in Azure).
+#
+# Prerequisites (both modes):
 #   - Hyper-V role installed on the local machine
-#   - Windows Server vNext Preview ISO downloaded from:
-#     https://aka.ms/DownloadWindowsServerPreviews
 #   - Azure CLI installed and logged in: az login
 #   - AzCopy installed: https://aka.ms/downloadazcopy
+#
+# Prerequisites (GA mode):
+#   - Windows Server 2025 ISO from Evaluation Center or Volume Licensing:
+#     https://www.microsoft.com/evalcenter/evaluate-windows-server-2025
+#   - Install all Windows Updates inside the VM until KB5099536 appears
+#     (OS build must reach 26100.33158 or later before Sysprep)
+#
+# Prerequisites (vNext mode):
+#   - Windows Server vNext Preview ISO from:
+#     https://aka.ms/DownloadWindowsServerPreviews
 # =============================================================================
 
 . "$PSScriptRoot\00-variables.ps1"
+
+# ----- Mode-specific configuration -------------------------------------------
+if ($DEPLOYMENT_MODE -eq "GA") {
+    $diskName     = "$PREFIX-ga-os-disk"
+    $imgPublisher = "PQCLab"
+    $imgOffer     = "WindowsServer2025"
+    $imgSku       = "GA-KB5099536"
+    $osLabel      = "Windows Server 2025 (Datacenter or Standard)"
+    $isoNote      = "Windows Server 2025 Evaluation ISO or Volume Licensing ISO"
+    $isoUrl       = "https://www.microsoft.com/evalcenter/evaluate-windows-server-2025"
+    $patchNote    = @"
+   IMPORTANT (GA mode):
+   4a. Open Windows Update — install all available updates and reboot.
+   4b. Repeat until no further updates are offered.
+   4c. Confirm OS build is 26100.33158 or later:
+       [System.Environment]::OSVersion.Version  (or winver)
+   4d. KB5099536 must appear in Settings > Windows Update > Update history
+       before you run Sysprep. This KB enables both ML-DSA (CA) and ML-KEM (TLS).
+"@
+} else {
+    $diskName     = "$PREFIX-vnext-os-disk"
+    $imgPublisher = "WindowsInsider"
+    $imgOffer     = "WindowsServerVNext"
+    $imgSku       = "Preview"
+    $osLabel      = "Windows Server vNext (Datacenter or Standard)"
+    $isoNote      = "Windows Server vNext Insider Preview ISO (build 29550+)"
+    $isoUrl       = "https://aka.ms/DownloadWindowsServerPreviews"
+    $patchNote    = "4. Install all Windows Updates and reboot until clean."
+}
+
+Write-Host ""
+Write-Host "=== Deployment Mode: $DEPLOYMENT_MODE ===" -ForegroundColor Cyan
+Write-Host "    Server image : $IMAGE_DEF_NAME  ($IMAGE_VERSION)"
+Write-Host "    Disk name    : $diskName"
+Write-Host ""
 
 # --- Step 1: Create a Hyper-V VM from the ISO and install Windows Server ----
 # (Manual step — automated install requires an answer file)
 Write-Host @"
 === MANUAL STEP REQUIRED ===
+ISO source : $isoNote
+Download   : $isoUrl
+
 1. In Hyper-V Manager, create a Generation 2 VM:
    - Disk: Fixed VHD, 128 GB minimum
    - RAM: 4 GB minimum
    - Network: any internal/external switch
-2. Attach the vNext ISO as the boot DVD
-3. Install Windows Server vNext (Datacenter or Standard)
-4. Install all Windows Updates and reboot until clean
-5. Run the Sysprep generalization below AFTER setup is complete
+2. Attach the ISO as the boot DVD.
+3. Install $osLabel.
+$patchNote
+5. Run the Sysprep block (Step 2) AFTER all updates are applied.
 
 Press Enter when the VM is fully set up and you are ready to generalize...
 "@
 Read-Host
 
 # --- Step 2: Generalize the VM (run INSIDE the Hyper-V VM) ------------------
-Write-Host "Run this block INSIDE the Hyper-V guest VM before shutting it down:"
+Write-Host "Run this block INSIDE the guest VM before shutting it down:"
 Write-Host @'
-# --- Run inside the vNext VM ---
+# --- Run inside the Windows Server VM ---
 # Uninstall VM-specific extensions / cleanup
 Get-AppxPackage -AllUsers | Where-Object {$_.NonRemovable -eq $false} | Remove-AppxPackage -ErrorAction SilentlyContinue
 
@@ -109,8 +162,8 @@ Write-Host "Uploading VHD to Azure (this may take 30-60 minutes for a 128GB disk
 azcopy copy $vhdPath $uploadUrl --blob-type PageBlob
 
 # --- Step 6: Create managed disk from VHD ------------------------------------
-$diskName = "$PREFIX-vnext-os-disk"
-Write-Host "Creating managed disk from uploaded VHD..."
+# $diskName was set by the mode config block at the top of this script
+Write-Host "Creating managed disk '$diskName' from uploaded VHD..."
 az disk create `
     --resource-group $RESOURCE_GROUP `
     --name $diskName `
@@ -128,14 +181,14 @@ az sig create `
     --location $LOCATION `
     --output none
 
-Write-Host "Creating image definition: $IMAGE_DEF_NAME..."
+Write-Host "Creating image definition: $IMAGE_DEF_NAME (publisher=$imgPublisher, offer=$imgOffer, sku=$imgSku)..."
 az sig image-definition create `
     --resource-group $RESOURCE_GROUP `
     --gallery-name $IMAGE_GALLERY_NAME `
     --gallery-image-definition $IMAGE_DEF_NAME `
-    --publisher "WindowsInsider" `
-    --offer "WindowsServerVNext" `
-    --sku "Preview" `
+    --publisher $imgPublisher `
+    --offer $imgOffer `
+    --sku $imgSku `
     --os-type Windows `
     --os-state Generalized `
     --hyper-v-generation V2 `

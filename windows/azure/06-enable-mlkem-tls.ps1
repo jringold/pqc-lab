@@ -17,7 +17,10 @@ Set-StrictMode -Version Latest
 
 function Log([string]`$msg) { Write-Host "[ML-KEM `$(Get-Date -Format HH:mm:ss)] `$msg" }
 
-# --- Method 1: PowerShell TLS cmdlets (vNext 29550+ only) ---
+# --- Method 1: PowerShell TLS cmdlets ---
+# Supported on: Windows Server vNext 29550+  OR  Windows Server 2025 GA + KB5099536
+# KB5099536 (July 14, 2026, OS Build 26100.33158) backported ML-KEM hybrid TLS to Server 2025 GA.
+# ML-DSA certificate issuance (CA servers) still requires KB5087539 (May 2026) or vNext 29550+.
 Log "Checking current TLS ECC/KEM curves..."
 Get-TlsEccCurve | Select-Object Name, Priority | Format-Table
 

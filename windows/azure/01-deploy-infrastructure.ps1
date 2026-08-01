@@ -141,7 +141,8 @@ foreach ($f in $scriptFiles) {
 }
 
 # =============================================================================
-# Step 4: Deploy 4 VMs from the custom vNext image
+# Step 4: Deploy server VMs from the custom image ($DEPLOYMENT_MODE mode)
+# Image: $IMAGE_DEF_NAME  version: $IMAGE_VERSION
 # =============================================================================
 Write-Host "=== Step 4: Deploy VMs ===" -ForegroundColor Cyan
 
@@ -216,11 +217,12 @@ foreach ($vm in $vms) {
 }
 
 # =============================================================================
-# Step 5: Deploy Windows 11 Insider Preview client VM
+# Step 5: Deploy Windows 11 client VM
 # NOTE: Win11 requires a separate image gallery definition because it is a
-# client OS. Create it by adapting 00-prepare-image.ps1 for the Win11 Insider
-# Preview ISO (build 26100.8514+). Set os-type to Windows and hyper-v-generation
-# to V2 in the gallery image definition.
+# client OS. Create it by adapting 00-prepare-image.ps1 for the Win11 ISO.
+# As of July 14, 2026: GA Win11 24H2/25H2 + KB5101650 (build 26100.8524+) is
+# sufficient — Insider Preview is no longer required for ML-KEM TLS.
+# Set os-type to Windows and hyper-v-generation to V2 in the gallery image def.
 # =============================================================================
 Write-Host "=== Step 5: Deploy Win11 Client VM ===" -ForegroundColor Cyan
 
@@ -235,7 +237,7 @@ if (-not $win11ImageId) {
     Write-Warning "Win11 image '$WIN11_IMAGE_DEF_NAME' version '$WIN11_IMAGE_VERSION' not found in gallery."
     Write-Warning "Skipping Win11 client VM deployment."
     Write-Warning "To add it later:"
-    Write-Warning "  1. Upload Win11 Insider Preview VHDX to the gallery (same process as 00-prepare-image.ps1)"
+    Write-Warning "  1. Upload a Win11 24H2 VHDX to the gallery (GA + KB5101650, or Insider Preview — same process as 00-prepare-image.ps1)"
     Write-Warning "  2. Run this block manually with the correct WIN11_IMAGE_VERSION set in 00-variables.ps1"
 } else {
     $clientNic   = "$VM_CLIENT-nic"
