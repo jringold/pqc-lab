@@ -24,7 +24,7 @@ param(
   [string]$AdminUser = "azureuser",
   [string]$Provider = "liboqs",
   [int]$CpuCount = 4,
-  [int]$MemoryGB = 8,
+  [int]$MemoryGB = 16,
   [int]$BootTimeoutSec = 900
 )
 

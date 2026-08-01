@@ -40,7 +40,7 @@ error()   { echo -e "${RED}[ERROR]${RESET} $*" | tee -a "$LOG" >&2; exit 1; }
 DOMAIN=""
 WEB_IP=""
 WEB_USER="azureuser"
-SSH_KEY="${SSH_KEY:-~/.ssh/id_rsa}"
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -54,6 +54,7 @@ done
 
 [[ -n "$DOMAIN" ]] || error "--domain is required (hostname or IP of the web VM)"
 [[ -n "$WEB_IP"  ]] || error "--web-ip is required (public IP of the web VM)"
+[[ -f "$SSH_KEY" ]] || error "SSH key not found: $SSH_KEY"
 
 # Detect if domain is an IP address
 IS_IP=false
@@ -204,7 +205,7 @@ VHOST
 # ---------------------------------------------------------------------------
 # Push everything to the web VM via SCP + SSH
 # ---------------------------------------------------------------------------
-SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=15"
+SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=15 -i ${SSH_KEY}"
 SCP_CMD="scp ${SSH_OPTS}"
 SSH_CMD="ssh ${SSH_OPTS} ${WEB_USER}@${WEB_IP}"
 
@@ -235,6 +236,12 @@ success "Files copied to web VM"
 info "Configuring Apache on web VM..."
 $SSH_CMD bash << REMOTE
 set -euo pipefail
+
+# Ensure Apache + TLS tooling exist for non-cloud-init flows (for example Hyper-V)
+if ! command -v apache2ctl >/dev/null 2>&1; then
+  sudo apt-get update -y
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 curl jq openssl
+fi
 
 # Install certs
 sudo install -m 644 /tmp/${DOMAIN}.cert.pem   /etc/ssl/certs/${DOMAIN}.cert.pem

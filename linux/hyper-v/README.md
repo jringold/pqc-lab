@@ -38,9 +38,10 @@ This is the Hyper-V equivalent of the Azure automation flow. It provisions **thr
 2. Ubuntu 26.04 template VHDX prepared with:
    - SSH server enabled
    - a login user (default in scripts: `azureuser`)
-   - your SSH public key in `~/.ssh/authorized_keys`
+   - the same SSH public key in `~/.ssh/authorized_keys` on each VM
 3. A virtual switch available (`Default Switch` works, or create your own external switch).
-4. A shell with `ssh` and `scp` available (WSL or Git Bash recommended).
+4. A shell with `ssh` and `scp` available (WSL or Git Bash recommended), with the matching private key at `~/.ssh/id_rsa` (or set `SSH_KEY`).
+5. For SymCrypt runs, use at least 16 GB RAM per VM (`-MemoryGB 16` or higher).
 
 ## Quickstart
 
@@ -56,7 +57,8 @@ cd C:\Users\jaringol\ObsidianVault\40-Resources\pq-ca-hyperv
   -SwitchName "Default Switch" `
   -Prefix "pq-hv" `
   -Provider "liboqs" `
-  -AdminUser "azureuser"
+  -AdminUser "azureuser" `
+  -MemoryGB 16
 ```
 
 This writes `.deploy-state` with:

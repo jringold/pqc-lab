@@ -52,6 +52,19 @@ export OPENSSL_CONF
 info "=== Building CA hierarchy (${PROVIDER}) ==="
 echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] START build-ca provider=${PROVIDER}" >> "$LOG"
 
+# Ensure CA directory layout exists (Azure cloud-init or bare Hyper-V image)
+mkdir -p /opt/pq-ca-setup
+mkdir -p /opt/pq-ca/{root-ca,intermediate-ca}
+mkdir -p /opt/pq-ca/root-ca/{certs,crl,newcerts,private,csr}
+mkdir -p /opt/pq-ca/intermediate-ca/{certs,crl,newcerts,private,csr}
+chmod 700 /opt/pq-ca/root-ca/private
+chmod 700 /opt/pq-ca/intermediate-ca/private
+touch /opt/pq-ca/root-ca/index.txt /opt/pq-ca/intermediate-ca/index.txt
+[[ -f /opt/pq-ca/root-ca/serial ]] || echo 1000 > /opt/pq-ca/root-ca/serial
+[[ -f /opt/pq-ca/intermediate-ca/serial ]] || echo 1000 > /opt/pq-ca/intermediate-ca/serial
+[[ -f /opt/pq-ca/root-ca/crlnumber ]] || echo 1000 > /opt/pq-ca/root-ca/crlnumber
+[[ -f /opt/pq-ca/intermediate-ca/crlnumber ]] || echo 1000 > /opt/pq-ca/intermediate-ca/crlnumber
+
 # =============================================================================
 # Write CA config files
 # =============================================================================
