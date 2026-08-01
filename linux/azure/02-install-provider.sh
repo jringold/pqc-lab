@@ -33,7 +33,15 @@ error()   { echo -e "${RED}[ERROR]${RESET} $*" | tee -a "$LOG" >&2; exit 1; }
 info "=== PQ Provider Installation: ${PROVIDER} ==="
 echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] START install-provider provider=${PROVIDER}" >> "$LOG"
 
+mkdir -p /opt/pq-ca /opt/pq-ca-setup
 mkdir -p /usr/local/src
+
+info "Installing common build dependencies..."
+apt-get update -y 2>&1 | tee -a "$LOG"
+apt-get install -y \
+  build-essential cmake ninja-build git curl wget \
+  libssl-dev python3 python3-pip pkg-config gcc g++ ca-certificates \
+  2>&1 | tee -a "$LOG"
 
 # =============================================================================
 # OPTION A — LibOQS + OQS-Provider

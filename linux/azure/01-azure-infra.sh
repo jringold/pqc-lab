@@ -17,6 +17,7 @@
 # Usage:
 #   export ADMIN_IP="$(curl -s https://ifconfig.me)/32"
 #   export PROVIDER=liboqs   # or: symcrypt
+#   export ADMIN_PASSWORD='ChangeMe-Strong-Passphrase-123!'
 #   export ORG_NAME="MyOrg"
 #   export ORG_COUNTRY="US"
 #   export ORG_STATE="Washington"
@@ -35,6 +36,7 @@ PREFIX="${PREFIX:-pq-ca}"
 RG="${PREFIX}-rg"
 VNET="${PREFIX}-vnet"
 ADMIN_USER="${ADMIN_USER:-azureuser}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 VM_SIZE="${VM_SIZE:-Standard_D4s_v5}"  # 4 vCPU/16 GB — needed to compile SymCrypt
 UBUNTU_IMAGE="${UBUNTU_IMAGE:-Canonical:ubuntu-26_04-lts:server:latest}"
 
@@ -68,6 +70,8 @@ if [[ -z "$ADMIN_IP" ]]; then
   ADMIN_IP="$(curl -s https://ifconfig.me)/32"
   info "Auto-detected ADMIN_IP: $ADMIN_IP"
 fi
+
+[[ -n "$ADMIN_PASSWORD" ]] || error "ADMIN_PASSWORD is required for desktop RDP access on the client VM"
 
 info "Deploying PQ CA test environment"
 info "  Provider  : $PROVIDER"
@@ -269,6 +273,8 @@ az vm create \
   --image "$UBUNTU_IMAGE" \
   --size "$VM_SIZE" \
   --admin-username "$ADMIN_USER" \
+  --admin-password "$ADMIN_PASSWORD" \
+  --authentication-type all \
   --generate-ssh-keys \
   --custom-data "@${CLIENT_INIT_TMP}" \
   --output none

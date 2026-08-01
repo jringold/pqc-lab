@@ -50,7 +50,7 @@ CLIENT_IP="${CLIENT_IP}"
 ADMIN_USER="${ADMIN_USER:-azureuser}"
 PROVIDER="${PROVIDER:-liboqs}"
 DOMAIN="${DOMAIN:-$WEB_IP}"  # Default domain = web VM IP (IP-SAN cert)
-SSH_KEY="${SSH_KEY:-~/.ssh/id_rsa}"
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
 CLOUD_INIT_TIMEOUT="${CLOUD_INIT_TIMEOUT:-900}"  # 15 min max
 
 [[ -n "${CA_IP:-}" ]] || error "CA_IP missing in .deploy-state"
@@ -64,6 +64,11 @@ ssh_ca()  { ssh  $SSH_OPTS "${ADMIN_USER}@${CA_IP}"  "$@"; }
 scp_to_ca() { scp $SSH_OPTS "$1" "${ADMIN_USER}@${CA_IP}:$2"; }
 ssh_client() { ssh $SSH_OPTS "${ADMIN_USER}@${CLIENT_IP}" "$@"; }
 scp_to_client() { scp $SSH_OPTS "$1" "${ADMIN_USER}@${CLIENT_IP}:$2"; }
+
+cleanup_staged_key() {
+  ssh_ca "sudo rm -f /tmp/pq-web-ssh-key" >/dev/null 2>&1 || true
+}
+trap cleanup_staged_key EXIT
 
 # ---------------------------------------------------------------------------
 wait_for_cloud_init() {
@@ -128,6 +133,9 @@ success "CA hierarchy built"
 
 # ---------------------------------------------------------------------------
 step "Step 5: Issue server certificate and deploy to web VM"
+[[ -f "$SSH_KEY" ]] || error "SSH key not found at ${SSH_KEY}. Set SSH_KEY to a readable private key."
+scp_to_ca "$SSH_KEY" "/tmp/pq-web-ssh-key"
+ssh_ca "chmod 600 /tmp/pq-web-ssh-key"
 ssh_ca "sudo PQ_PROVIDER=${PROVIDER} \
              ORG_NAME='${ORG_NAME:-TestOrg}' \
              ORG_COUNTRY='${ORG_COUNTRY:-US}' \
@@ -135,7 +143,9 @@ ssh_ca "sudo PQ_PROVIDER=${PROVIDER} \
              bash /tmp/04-issue-server-cert.sh \
                --domain ${DOMAIN} \
                --web-ip  ${WEB_IP} \
-               --web-user ${ADMIN_USER}"
+               --web-user ${ADMIN_USER} \
+               --ssh-key /tmp/pq-web-ssh-key"
+ssh_ca "sudo rm -f /tmp/pq-web-ssh-key"
 success "Server cert deployed and Apache configured"
 
 # ---------------------------------------------------------------------------

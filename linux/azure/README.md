@@ -85,6 +85,7 @@ All scripts are in `40-Resources/pq-ca-azure/` in this vault.
 # Required
 export PROVIDER=liboqs        # or: symcrypt
 export ADMIN_IP="$(curl -s https://ifconfig.me)/32"
+export ADMIN_PASSWORD='ChangeMe-Strong-Passphrase-123!'
 
 # Optional — defaults shown
 export PREFIX=pq-ca
@@ -97,6 +98,7 @@ export ORG_STATE="Washington"
 
 > ⚠️ `Standard_D4s_v5` (4 vCPU / 16 GB) is the minimum recommended size.  
 > SymCrypt builds require ~8 GB RAM during compilation. Do not use `Standard_B2s`.
+> `ADMIN_PASSWORD` is used for RDP login to the Ubuntu desktop client VM.
 
 ### 3. Provision infrastructure
 
@@ -178,11 +180,14 @@ ssh ${ADMIN_USER}@${CA_IP} \
 
 ```bash
 scp 04-issue-server-cert.sh ${ADMIN_USER}@${CA_IP}:/tmp/
+scp ~/.ssh/id_rsa ${ADMIN_USER}@${CA_IP}:/tmp/pq-web-ssh-key
 ssh ${ADMIN_USER}@${CA_IP} \
   "sudo PQ_PROVIDER=${PROVIDER} bash /tmp/04-issue-server-cert.sh \
     --domain ${WEB_IP} \
     --web-ip  ${WEB_IP} \
-    --web-user ${ADMIN_USER}"
+    --web-user ${ADMIN_USER} \
+    --ssh-key /tmp/pq-web-ssh-key && \
+   sudo rm -f /tmp/pq-web-ssh-key"
 ```
 
 ### Step 5 — Verify from CA VM
@@ -234,7 +239,7 @@ Use your RDP client to connect to the client VM on port 3389:
 # Linux:   xfreerdp /v:${CLIENT_IP}
 ```
 
-Log in with the Azure VM admin username and the local password you configured. The session starts XFCE, with Firefox available for browser-based PQC inspection.
+Log in with the Azure VM admin username and `ADMIN_PASSWORD`. The session starts XFCE, with Firefox available for browser-based PQC inspection.
 
 ## Using a Custom Domain Name
 
