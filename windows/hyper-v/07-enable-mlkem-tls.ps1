@@ -10,6 +10,8 @@
 # All three ML-KEM hybrid groups use TLS 1.3 only and are disabled by default.
 # BOTH server AND client must enable the groups for negotiation to succeed.
 # =============================================================================
+
+$mlKemScript = {
     Enable-TlsEccCurve -Name "x25519_mlkem768"
     Enable-TlsEccCurve -Name "secp256r1_mlkem768"
     Enable-TlsEccCurve -Name "secp384r1_mlkem1024"
@@ -22,6 +24,18 @@
         "NistP256",
         "x25519"
     )
+
+    # Keep local SSL curve order persistent in REG_MULTI_SZ
+    $regBase = "HKLM:\SYSTEM\CurrentControlSet\Control\Cryptography\Configuration\Local\SSL\00010003"
+    if (-not (Test-Path $regBase)) { New-Item -Path $regBase -Force | Out-Null }
+    New-ItemProperty -Path $regBase -Name "Functions" -PropertyType MultiString -Value @(
+        "x25519_mlkem768",
+        "secp256r1_mlkem768",
+        "secp384r1_mlkem1024",
+        "NistP384",
+        "NistP256",
+        "x25519"
+    ) -Force | Out-Null
 
     $serverKey = "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.3\Server"
     if (-not (Test-Path $serverKey)) { New-Item $serverKey -Force | Out-Null }
@@ -47,4 +61,3 @@ Restart-VmAndWait -VmName $VmWeb
 Restart-VmAndWait -VmName $VmDc
 
 Write-Step "ML-KEM enablement complete."
-

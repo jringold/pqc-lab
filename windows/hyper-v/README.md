@@ -39,16 +39,17 @@ It builds the same PKI topology for testing:
 
 ## Script order
 
-1. `00-variables.ps1` (edit first — update both `BaseVhdPath` and `Win11BaseVhdPath`)
+1. `00-variables.ps1` (edit first — set `DeploymentMode`, server image paths, and `Win11BaseVhdPath`)
 2. `01-prereq-check.ps1`
 3. `02-new-lab-vms.ps1`
-4. `03-config-dc.ps1`
-5. `04-config-rootca.ps1`
-6. `05-config-issuingca.ps1`
-7. `06-config-webserver.ps1`
-8. `07-enable-mlkem-tls.ps1`
-9. `08-verify.ps1`
-10. `09-config-win11-client.ps1` ← **Win11 client — ML-KEM + Edge PQC verification**
+4. `00-verify-patches.ps1` (confirm required server build/KB baseline before AD CS setup)
+5. `03-config-dc.ps1`
+6. `04-config-rootca.ps1`
+7. `05-config-issuingca.ps1`
+8. `06-config-webserver.ps1`
+9. `07-enable-mlkem-tls.ps1`
+10. `08-verify.ps1`
+11. `09-config-win11-client.ps1` ← **Win11 client — ML-KEM + Edge PQC verification**
 
 Cleanup:
 - `99-cleanup.ps1`
