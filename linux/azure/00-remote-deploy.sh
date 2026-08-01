@@ -181,6 +181,7 @@ echo "================================================================"
 echo "  CA VM  : ssh ${ADMIN_USER}@${CA_IP}"
 echo "  Web VM : https://${WEB_IP}  (self-signed PQ cert)"
 echo "  Client : ssh ${ADMIN_USER}@${CLIENT_IP}"
+echo "  Client GUI: RDP to ${CLIENT_IP}:3389 using ${ADMIN_USER}"
 echo
 echo "  To add your Root CA to local trust (Linux):"
 echo "    scp ${ADMIN_USER}@${CA_IP}:/opt/pq-ca/root-ca/certs/root-ca.cert.pem /tmp/"

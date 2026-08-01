@@ -23,7 +23,7 @@ Scripts to automate provisioning and configuring Azure VMs for testing the [[pq-
 | `01-azure-infra.sh` | Local machine | Provision VMs, VNet, NSG via Azure CLI |
 | `cloud-init-ca.yml` | (injected into CA VM) | OS prep + directory structure |
 | `cloud-init-web.yml` | (injected into Web VM) | Apache install |
-| `cloud-init-client.yml` | (injected into Client VM) | Client OS prep for PQ TLS tests |
+| `cloud-init-client.yml` | (injected into Client VM) | Ubuntu desktop GUI + client OS prep for PQ TLS tests |
 | `02-install-provider.sh` | CA VM | Build LibOQS or SymCrypt provider |
 | `03-build-ca.sh` | CA VM | Create Root CA + Intermediate CA hierarchy |
 | `04-issue-server-cert.sh` | CA VM | Issue server cert, push to web VM, configure Apache |
@@ -56,7 +56,8 @@ Local Machine           │    Azure (eastus)     │
                         │  │ client-subnet  │  │
                         │  │ 10.0.3.0/24    │  │
                         │  │ pq-client-vm   │  │
-                        │  │ openssl client │  │
+                        │  │ Ubuntu Desktop │  │
+                        │  │ browser client │  │
                         │  └────────────────┘  │
                         └──────────────────────┘
 ```
@@ -223,6 +224,17 @@ ssh ${ADMIN_USER}@${CLIENT_IP} \
      --target ${WEB_IP} \
      --ca-cert /usr/local/share/ca-certificates/pq-root-ca.crt"
 ```
+
+### Step 9 — Open the desktop GUI
+
+Use your RDP client to connect to the client VM on port 3389:
+
+```bash
+# Windows: mstsc /v:${CLIENT_IP}
+# Linux:   xfreerdp /v:${CLIENT_IP}
+```
+
+Log in with the Azure VM admin username and the local password you configured. The session starts XFCE, with Firefox available for browser-based PQC inspection.
 
 ## Using a Custom Domain Name
 
