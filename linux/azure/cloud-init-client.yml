@@ -1,0 +1,36 @@
+#cloud-config
+# =============================================================================
+# cloud-init-client.yml — Ubuntu client VM initialization
+#
+# Installs tooling needed for TLS client validation. PQ provider installation
+# is performed later by 00-remote-deploy.sh via 02-install-provider.sh.
+# =============================================================================
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - build-essential
+  - cmake
+  - ninja-build
+  - git
+  - curl
+  - wget
+  - jq
+  - openssl
+  - ca-certificates
+  - libssl-dev
+  - python3
+  - python3-pip
+  - pkg-config
+  - gcc
+  - g++
+
+runcmd:
+  - mkdir -p /opt/pq-ca /opt/pq-ca-setup
+  - echo "Client VM ready for PQ provider install and TLS tests" >> /var/log/pq-setup.log
+  - echo "CLOUD_INIT_DONE=1" > /tmp/.cloud-init-client-status
+
+final_message: |
+  PQ Client VM cloud-init complete.
+  Next: run 00-remote-deploy.sh to install provider and execute client tests.
