@@ -2,8 +2,8 @@
 title: "Azure VM Deployment Scripts — Post-Quantum CA Testing"
 type: resource
 created: 2026-07-28
-updated: 2026-07-28
-tags: [azure, pki, post-quantum, ml-dsa, ml-kem, deployment, automation, bash, infrastructure]
+updated: 2026-08-01
+tags: [azure, pki, post-quantum, ml-dsa, ml-kem, deployment, automation, bash, infrastructure, client]
 sources:
   - "[[pq-certificate-authority-ubuntu-2604]]"
   - "https://learn.microsoft.com/en-us/cli/azure/"
@@ -23,34 +23,42 @@ Scripts to automate provisioning and configuring Azure VMs for testing the [[pq-
 | `01-azure-infra.sh` | Local machine | Provision VMs, VNet, NSG via Azure CLI |
 | `cloud-init-ca.yml` | (injected into CA VM) | OS prep + directory structure |
 | `cloud-init-web.yml` | (injected into Web VM) | Apache install |
+| `cloud-init-client.yml` | (injected into Client VM) | Client OS prep for PQ TLS tests |
 | `02-install-provider.sh` | CA VM | Build LibOQS or SymCrypt provider |
 | `03-build-ca.sh` | CA VM | Create Root CA + Intermediate CA hierarchy |
 | `04-issue-server-cert.sh` | CA VM | Issue server cert, push to web VM, configure Apache |
 | `05-verify-tls.sh` | CA VM | 8-check verification suite (PQ TLS, chain, HSTS) |
+| `06-client-verify.sh` | Client VM | Client-side TLS 1.3 negotiation + PQ key exchange checks |
 | `99-teardown.sh` | Local machine | Delete Azure resource group |
 
 ## Architecture Deployed
 
 ```
                         ┌─────────────────────┐
-Local Machine           │    Azure (eastus)    │
+Local Machine           │    Azure (eastus)     │
   az CLI  ──────────►   │  Resource Group      │
   SSH/SCP ──────────►   │                      │
-                        │  VNet 10.0.0.0/16    │
+                        │  VNet 10.0.0.0/16     │
                         │  ┌────────────────┐  │
                         │  │ mgmt-subnet    │  │
                         │  │ 10.0.1.0/24    │  │
                         │  │  pq-ca-vm      │  │
                         │  │  ML-DSA-87 CA  │  │
                         │  └───────┬────────┘  │
-                        │          │ SCP certs  │
+                        │          │ SCP certs   │
                         │  ┌───────▼────────┐  │
                         │  │ web-subnet     │  │
                         │  │ 10.0.2.0/24    │  │
                         │  │  pq-web-vm     │  │
                         │  │  Apache+ML-KEM │  │
                         │  └────────────────┘  │
-                        └─────────────────────┘
+                        │  ┌────────────────┐  │
+                        │  │ client-subnet  │  │
+                        │  │ 10.0.3.0/24    │  │
+                        │  │ pq-client-vm   │  │
+                        │  │ openssl client │  │
+                        │  └────────────────┘  │
+                        └──────────────────────┘
 ```
 
 ## Prerequisites
@@ -106,12 +114,15 @@ chmod +x 00-remote-deploy.sh
 ```
 
 This:
-1. Waits for cloud-init to finish on both VMs (~5 min for LibOQS, ~15 min for SymCrypt)
+1. Waits for cloud-init to finish on CA, Web, and Client VMs (~5 min for LibOQS, ~15 min for SymCrypt)
 2. Builds the PQ provider on the CA VM
 3. Creates the Root CA (ML-DSA-87) and Intermediate CA (ML-DSA-65)
 4. Issues an ML-DSA-65 server cert for the web VM's IP address
 5. Pushes the cert + provider to the web VM and restarts Apache
 6. Runs 8 automated TLS verification tests
+7. Builds the same PQ provider on the client VM
+8. Trusts the Root CA on the client VM
+9. Runs client-side TLS verification (TLS 1.3 + PQ key exchange)
 
 Expected final output:
 ```
@@ -173,7 +184,7 @@ ssh ${ADMIN_USER}@${CA_IP} \
     --web-user ${ADMIN_USER}"
 ```
 
-### Step 5 — Verify
+### Step 5 — Verify from CA VM
 
 ```bash
 scp 05-verify-tls.sh ${ADMIN_USER}@${CA_IP}:/tmp/
@@ -181,6 +192,36 @@ ssh ${ADMIN_USER}@${CA_IP} \
   "PQ_PROVIDER=${PROVIDER} bash /tmp/05-verify-tls.sh \
     --target ${WEB_IP} \
     --ca-cert /opt/pq-ca/root-ca/certs/root-ca.cert.pem"
+```
+
+### Step 6 — Install provider on client VM
+
+```bash
+scp 02-install-provider.sh ${ADMIN_USER}@${CLIENT_IP}:/tmp/
+ssh ${ADMIN_USER}@${CLIENT_IP} \
+  "sudo mkdir -p /opt/pq-ca /opt/pq-ca-setup && \
+   sudo PQ_PROVIDER=${PROVIDER} bash /tmp/02-install-provider.sh"
+```
+
+### Step 7 — Trust Root CA on client VM
+
+```bash
+scp ${ADMIN_USER}@${CA_IP}:/opt/pq-ca/root-ca/certs/root-ca.cert.pem /tmp/pq-root-ca.crt
+scp /tmp/pq-root-ca.crt ${ADMIN_USER}@${CLIENT_IP}:/tmp/pq-root-ca.crt
+ssh ${ADMIN_USER}@${CLIENT_IP} \
+  "sudo cp /tmp/pq-root-ca.crt /usr/local/share/ca-certificates/pq-root-ca.crt && \
+   sudo update-ca-certificates"
+```
+
+### Step 8 — Verify TLS negotiation from client VM
+
+```bash
+scp 06-client-verify.sh ${ADMIN_USER}@${CLIENT_IP}:/tmp/
+ssh ${ADMIN_USER}@${CLIENT_IP} \
+  "chmod +x /tmp/06-client-verify.sh && \
+   PQ_PROVIDER=${PROVIDER} bash /tmp/06-client-verify.sh \
+     --target ${WEB_IP} \
+     --ca-cert /usr/local/share/ca-certificates/pq-root-ca.crt"
 ```
 
 ## Using a Custom Domain Name
@@ -224,6 +265,7 @@ This deletes the entire resource group (VMs, VNet, NSG, public IPs, NICs, disks)
 | `symcryptprovider.so not found` | SymCrypt build failed | Check `python3 scripts/build.py` output in log; ensure `git submodule update --init` ran |
 | `ML-DSA not listed` | Provider not activated | Verify `OPENSSL_CONF` points to correct `.cnf` file |
 | `Server Temp Key: X25519` (no MLKEM) | Apache doesn't have PQ provider | Check `/etc/apache2/envvars.d/pq-openssl.conf` exists on web VM |
+| Client verify fails chain validation | Root CA not trusted on client | Re-copy cert to `/usr/local/share/ca-certificates/` and run `update-ca-certificates` |
 | `Verification: FAILED` in s_client | Root CA not trusted | Pass `-CAfile /opt/pq-ca/root-ca/certs/root-ca.cert.pem` explicitly |
 | Port 443 unreachable | NSG rule missing | Check `ADMIN_IP` was correct; re-run `01-azure-infra.sh` |
 
@@ -233,9 +275,10 @@ This deletes the entire resource group (VMs, VNet, NSG, public IPs, NICs, disks)
 |----------|-----|---------------------|
 | CA VM (Standard_D4s_v5) | 4 vCPU / 16 GB | ~$140/mo |
 | Web VM (Standard_D4s_v5) | 4 vCPU / 16 GB | ~$140/mo |
-| 2× Public IPs (Standard) | Static | ~$7/mo |
+| Client VM (Standard_D4s_v5) | 4 vCPU / 16 GB | ~$140/mo |
+| 3× Public IPs (Standard) | Static | ~$11/mo |
 | OS Disks (Premium SSD P10) | 128 GB | ~$20/mo |
-| **Total** | | **~$307/mo** |
+| **Total** | | **~$451/mo** |
 
 > 💡 For testing, **deallocate VMs** when not in use (`az vm deallocate`).
 > You only pay for storage while deallocated. Restart with `az vm start`.
