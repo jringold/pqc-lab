@@ -7,8 +7,11 @@
 #
 # Prerequisites:
 #   - Scripts 01 through 08 must be complete.
-#   - $Win11BaseVhdPath must point to a prepared Win11 Insider Preview VHDX
-#     (build 26100.8514+, sysprepped, local admin account set).
+#   - $Win11BaseVhdPath must point to a prepared Win11 VHDX. As of July 14, 2026:
+#       GA Win11 24H2/25H2 with KB5101650 (build 26100.8524+) is sufficient.
+#       GA Win11 26H1 with KB5095091 is sufficient.
+#       Win11 Insider Preview build 26100.8514+ also works (original minimum).
+#       Insider Preview is NO LONGER REQUIRED for ML-KEM TLS support.
 #   - The Win11 client VM must have been created by 02-new-lab-vms.ps1.
 #
 # Why Win11 and not a second Server VM?
@@ -51,8 +54,9 @@ Wait-VMReadyForDirect -VmName $VmClient
 Write-Step "Enabling ML-KEM TLS groups on Win11 client..."
 
 Invoke-InVmDomain -VmName $VmClient -ScriptBlock {
-    # Win11 Insider Preview 26100.8514+ supports the same TLS cmdlets as
-    # Server vNext 29550+. Both sides must advertise ML-KEM for negotiation.
+    # As of July 14, 2026 (KB5101650): GA Win11 24H2/25H2 supports these same cmdlets.
+    # Server vNext 29550+ OR Server 2025 GA + KB5099536 supports the server side.
+    # Both sides must advertise ML-KEM for negotiation to succeed.
     Enable-TlsEccCurve -Name "x25519_mlkem768"
     Enable-TlsEccCurve -Name "secp256r1_mlkem768"
     Enable-TlsEccCurve -Name "secp384r1_mlkem1024"
@@ -81,9 +85,14 @@ Invoke-InVmDomain -VmName $VmClient -ScriptBlock {
     # Persist the KEM group list to the registry so GP refreshes can't revert it
     $regBase = "HKLM:\SYSTEM\CurrentControlSet\Control\Cryptography\Configuration\Local\SSL\00010003"
     if (-not (Test-Path $regBase)) { New-Item -Path $regBase -Force | Out-Null }
-    Set-ItemProperty -Path $regBase -Name "Functions" -Value (
-        "x25519_mlkem768\0secp256r1_mlkem768\0secp384r1_mlkem1024\0NistP384\0NistP256\0x25519"
-    ) -Type String
+    Set-ItemProperty -Path $regBase -Name "Functions" -Value @(
+        "x25519_mlkem768",
+        "secp256r1_mlkem768",
+        "secp384r1_mlkem1024",
+        "NistP384",
+        "NistP256",
+        "x25519"
+    ) -Type MultiString
 
     Write-Host "ML-KEM priority list:"
     Get-TlsEccCurve | Select-Object Name, Priority | Format-Table -AutoSize

@@ -3,8 +3,16 @@
 
 $LabName = "pqclab"
 
+# ----- Deployment Mode -------------------------------------------------------
+# "GA"    — Windows Server 2025 GA + KB5087539 (ML-DSA) + KB5099536 (ML-KEM TLS) [RECOMMENDED]
+#           Requires only production Windows Update — no Insider subscription needed.
+# "vNext" — Windows Server vNext Insider Preview 29550+  (all PQC features built-in)
+$DeploymentMode = "GA"
+
 # Hyper-V host paths
-$BaseVhdPath = "D:\HyperV\BaseImages\wsvnext-29550-gold.vhdx"   # vNext 29550+ prepared image
+$VNextBaseVhdPath = "D:\HyperV\BaseImages\wsvnext-29550-gold.vhdx"          # vNext 29550+
+$GaBaseVhdPath    = "D:\HyperV\BaseImages\ws2025-26100.33158-gold.vhdx"     # Server 2025 GA + KB5099536
+$BaseVhdPath = if ($DeploymentMode -eq "GA") { $GaBaseVhdPath } else { $VNextBaseVhdPath }
 $VmRootPath = "D:\HyperV\PQCLab"
 $HostStagingPath = "D:\HyperV\PQCLab\staging"
 
@@ -37,7 +45,7 @@ $VmRootCa = "pqc-rootca"
 $VmDc = "pqc-dc01"
 $VmIssuingCa = "pqc-issuingca"
 $VmWeb = "pqc-web01"
-$VmClient = "pqc-win11client"   # Windows 11 Insider Preview PQC test client
+$VmClient = "pqc-win11client"   # Windows 11 PQC test client (GA 24H2 + KB5101650 or Insider Preview)
 
 # VM sizing
 $VmGeneration = 2
@@ -50,9 +58,10 @@ $DiffDiskSizeBytes = 128GB
 # Optional host-only setup defaults
 $EnableHostNat = $true
 
-# Windows 11 Insider Preview client image
-# Separate base VHDX required — Win11 Insider Preview ISO (build 26100.8514+),
-# sysprepped with local Administrator account set, saved as a VHDX on the host.
-$Win11BaseVhdPath = "D:\HyperV\BaseImages\win11-26100-insider-gold.vhdx"
+# Windows 11 client image
+# As of July 14, 2026, GA Win11 24H2/25H2 + KB5101650 (build 26100.8524+) is sufficient.
+# Win11 26H1 + KB5095091 also works. Insider Preview 26100.8514+ remains valid.
+# Separate base VHDX required — sysprepped with local Administrator account set.
+$Win11BaseVhdPath = "D:\HyperV\BaseImages\win11-26100-ga-gold.vhdx"
 $ClientIp = "10.10.0.50"
 

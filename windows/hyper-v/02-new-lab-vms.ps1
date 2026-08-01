@@ -57,12 +57,12 @@ foreach ($vm in $vmMap) {
     }
 }
 
-# Win11 client VM — uses a separate base image (Win11 Insider Preview VHDX)
+# Win11 client VM — uses a separate base image (Win11 24H2 GA + KB5101650, or Insider Preview)
 Write-Step "Creating Win11 client VM ($VmClient)..."
 if (-not (Test-Path $Win11BaseVhdPath)) {
     Write-Warning "Win11 base image not found at: $Win11BaseVhdPath"
     Write-Warning "Skipping Win11 client VM creation. Prepare the image and re-run, or create the VM manually."
-    Write-Warning "Required: Win11 Insider Preview ISO (build 26100.8514+) → Hyper-V VM → Sysprep → VHDX"
+    Write-Warning "Required: Win11 24H2 ISO (GA + KB5101650, build 26100.8524+, or Insider Preview 26100.8514+) → Hyper-V VM → Sysprep → VHDX"
 } else {
     $clientVmPath = Join-Path $VmRootPath $VmClient
     $clientVhdPath = Join-Path $clientVmPath "$VmClient.vhdx"
