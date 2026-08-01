@@ -13,7 +13,7 @@ fully PQC-safe TLS 1.3 endpoint using NIST standards **FIPS 203 (ML-KEM)** and *
 
 | | [Windows Path](#windows-path) | [Ubuntu Path](#ubuntu-path) |
 |---|---|---|
-| **OS** | Windows Server vNext Insider Preview (Build 29550+) | Ubuntu 26.04 LTS |
+| **OS** | Windows Server 2025 GA + KB5099536 (recommended) or Windows Server vNext Insider Preview (Build 29550+) | Ubuntu 26.04 LTS |
 | **PKI stack** | Active Directory Certificate Services (AD CS) | OpenSSL 3.x + LibOQS or SymCrypt provider |
 | **CA hierarchy** | Root CA → Enterprise Issuing CA → Server Cert (AD DS-integrated) | Root CA → Intermediate CA → Server Cert (standalone) |
 | **Web server** | IIS | Apache 2.4 + mod_ssl |
@@ -38,10 +38,11 @@ Both paths produce an HTTPS endpoint with the same TLS profile:
 
 **Repository:** [`pqc-lab-windows/`](./pqc-lab-windows/)
 
-Deploys a two-tier PKI on Windows Server vNext Insider Preview using AD CS. The lab includes
-an Active Directory domain (`pqclab.local`), a standalone Root CA, an Enterprise Issuing CA,
-an IIS web server, and a **Windows 11 Insider Preview client VM** for end-to-end browser-level
-PQC verification — confirming PQC key exchange via Edge DevTools, not just server-side tooling.
+Deploys a two-tier PKI on Windows Server 2025 GA + KB5099536 (recommended) or Windows Server
+vNext Insider Preview using AD CS. The lab includes an Active Directory domain (`pqclab.local`),
+a standalone Root CA, an Enterprise Issuing CA, an IIS web server, and a **Windows 11 client VM**
+for end-to-end browser-level PQC verification — confirming PQC key exchange via Edge DevTools,
+not just server-side tooling.
 
 ### What gets deployed
 
@@ -50,7 +51,7 @@ rootca          Standalone Root CA         ML-DSA-87 (FIPS 204, Level 5)   Offli
 dc01            Domain Controller          AD DS + DNS  pqclab.local
 issuingca       Enterprise Issuing CA      ML-DSA-65 (FIPS 204, Level 3)   Domain-joined
 webserver01     IIS Web Server             ML-DSA-65 TLS cert + x25519_mlkem768 key exchange
-win11client     Windows 11 Insider Client  ML-KEM enabled + Edge DevTools PQC verification
+win11client     Windows 11 GA Client       ML-KEM enabled + Edge DevTools PQC verification
 ```
 
 After deployment, confirm PQC negotiation via **Edge F12 → Security tab** on the Win11 client
@@ -59,12 +60,18 @@ post-quantum key establishment, not just classical X25519.
 
 ### Prerequisites (Windows path)
 
-- Windows Server vNext Insider Preview ISO, build **29550 or later**
+- Windows Server 2025 GA ISO + KB5099536 (recommended)
+  - Download from the Evaluation Center or Volume Licensing portal
+  - Apply July 14, 2026 updates until build **26100.33158** or later
+- Windows Server vNext Insider Preview ISO, build **29550 or later** (alternative)
   - Register and download: https://aka.ms/DownloadWindowsServerPreviews
   - Requires Windows Insider Program membership (free)
-- **Windows 11 Insider Preview ISO, build 26100.8514 or later** — for the client VM
-  - Download from the Windows Insider Program (Dev or Beta channel)
-  - Optional but strongly recommended for browser-level PQC verification
+- **Windows 11 ISO — build 26100.8524+ with KB5101650 (GA Win11 24H2/25H2)** — for the client VM
+  - As of **July 14, 2026**, Insider Preview is **no longer required** for the client ML-KEM piece
+  - GA Win11 24H2/25H2 + **KB5101650** (production) or **KB5089573** (preview, build 26100.8524+)
+  - Win11 26H1 GA + **KB5095091** also qualifies
+  - Win11 Insider Preview build 26100.8514+ remains valid (original minimum)
+  - The client VM is optional but strongly recommended for browser-level PQC verification
 - PowerShell 5.1 or 7+
 
 ### Windows → Azure
@@ -88,8 +95,8 @@ cd pqc-azure-deploy
 notepad 00-variables.ps1          # Set SUBSCRIPTION_ID, ADMIN_PASS, LOCATION
 
 # 2. Prepare images (run on a local Hyper-V host, ~60 min each)
-.\00-prepare-image.ps1            # Server vNext 29550+ image
-# Repeat for Win11 Insider Preview (adapt for Win11 ISO + client OS image definition)
+.\00-prepare-image.ps1            # Server 2025 GA + KB5099536 or vNext 29550+ image
+# Repeat for Win11 24H2 GA (adapt for Win11 ISO + client OS image definition)
 
 # 3. Deploy infrastructure (VNet, NSG, up to 5 VMs)
 .\01-deploy-infrastructure.ps1
@@ -297,6 +304,10 @@ threat). It does not appear in any certificate. TLS 1.3 is mandatory for ML-KEM 
 **Both the server and the client must have ML-KEM enabled** for negotiation to succeed — this
 is why the Windows path includes a Win11 client VM.
 
+**July 14, 2026 update:** Microsoft backported ML-KEM hybrid TLS to GA builds. Windows Server 2025
+GA + KB5099536 and Win11 24H2/25H2 GA + KB5101650 now support the TLS key exchange path, while
+Windows Server vNext 29550+ remains the cleanest single-image option for CA + TLS testing.
+
 ### Current limitations (as of August 2026)
 
 | Limitation | Details |
@@ -306,7 +317,8 @@ is why the Windows path includes a Win11 client VM.
 | ML-KEM keys not in certs | ML-KEM operates only in the TLS handshake — it is not embedded in the certificate. |
 | ML-KEM disabled by default (Windows) | Must explicitly call `Enable-TlsEccCurve` on **both** server and client. |
 | TLS 1.3 required for ML-KEM | Hybrid groups are not available in TLS 1.2 or earlier. |
-| Win11 client build minimum | Client VM must be Insider Preview build **26100.8514 or later** for ML-KEM support. |
+| Win11 client build (updated) | GA Win11 24H2/25H2 + KB5101650 (build 26100.8524+) is now sufficient for ML-KEM. Insider Preview 26100.8514+ still works. Win11 26H1 GA + KB5095091 also qualifies. |
+| Server GA ML-KEM (updated) | Server 2025 GA + KB5099536 supports ML-KEM hybrid TLS. vNext 29550+ is still required for ML-DSA cert issuance on CA servers. |
 | Browser compatibility (Windows path) | Microsoft Edge (CNG-based) validates ML-DSA chains and shows KEM group in DevTools. Chrome/Firefox support unconfirmed as of August 2026. Use Edge for testing. |
 | LibOQS not FIPS validated | Labeled "not production ready" by the OQS project. Use SymCrypt for FIPS requirements. |
 
