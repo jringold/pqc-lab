@@ -121,7 +121,8 @@ $scriptFiles = @(
     "03-config-rootca.ps1",
     "04-config-issuingca.ps1",
     "05-config-webserver.ps1",
-    "06-enable-mlkem-tls.ps1"
+    "06-enable-mlkem-tls.ps1",
+    "08-config-win11-client.ps1"
 )
 
 foreach ($f in $scriptFiles) {
@@ -214,11 +215,77 @@ foreach ($vm in $vms) {
     Write-Host "  VM $vmName deployed." -ForegroundColor Green
 }
 
+# =============================================================================
+# Step 5: Deploy Windows 11 Insider Preview client VM
+# NOTE: Win11 requires a separate image gallery definition because it is a
+# client OS. Create it by adapting 00-prepare-image.ps1 for the Win11 Insider
+# Preview ISO (build 26100.8514+). Set os-type to Windows and hyper-v-generation
+# to V2 in the gallery image definition.
+# =============================================================================
+Write-Host "=== Step 5: Deploy Win11 Client VM ===" -ForegroundColor Cyan
+
+$win11ImageId = az sig image-version show `
+    --resource-group $RESOURCE_GROUP `
+    --gallery-name $IMAGE_GALLERY_NAME `
+    --gallery-image-definition $WIN11_IMAGE_DEF_NAME `
+    --gallery-image-version $WIN11_IMAGE_VERSION `
+    --query "id" -o tsv 2>$null
+
+if (-not $win11ImageId) {
+    Write-Warning "Win11 image '$WIN11_IMAGE_DEF_NAME' version '$WIN11_IMAGE_VERSION' not found in gallery."
+    Write-Warning "Skipping Win11 client VM deployment."
+    Write-Warning "To add it later:"
+    Write-Warning "  1. Upload Win11 Insider Preview VHDX to the gallery (same process as 00-prepare-image.ps1)"
+    Write-Warning "  2. Run this block manually with the correct WIN11_IMAGE_VERSION set in 00-variables.ps1"
+} else {
+    $clientNic   = "$VM_CLIENT-nic"
+    $clientPip   = "$VM_CLIENT-pip"
+    $clientDisk  = "$VM_CLIENT-osdisk"
+
+    az network public-ip create `
+        --resource-group $RESOURCE_GROUP `
+        --name $clientPip `
+        --location $LOCATION `
+        --sku Standard `
+        --allocation-method Static `
+        --tags @tagArgs `
+        --output none
+
+    az network nic create `
+        --resource-group $RESOURCE_GROUP `
+        --name $clientNic `
+        --location $LOCATION `
+        --vnet-name $VNET_NAME `
+        --subnet $SUBNET_NAME `
+        --private-ip-address "10.10.1.50" `
+        --public-ip-address $clientPip `
+        --network-security-group $NSG_NAME `
+        --tags @tagArgs `
+        --output none
+
+    az vm create `
+        --resource-group $RESOURCE_GROUP `
+        --name $VM_CLIENT `
+        --location $LOCATION `
+        --nics $clientNic `
+        --image $win11ImageId `
+        --size $VM_SIZE `
+        --admin-username $ADMIN_USER `
+        --admin-password $ADMIN_PASS `
+        --os-disk-name $clientDisk `
+        --os-disk-size-gb 128 `
+        --storage-sku Premium_LRS `
+        --tags @tagArgs `
+        --output none
+
+    Write-Host "  Win11 client VM $VM_CLIENT deployed." -ForegroundColor Green
+}
+
 Write-Host ""
 Write-Host "=== All VMs deployed ===" -ForegroundColor Green
 Write-Host ""
 
-# Print connection info
+# Print connection info — Server VMs
 foreach ($vm in $vms) {
     $pip = az network public-ip show `
         --resource-group $RESOURCE_GROUP `
@@ -227,5 +294,15 @@ foreach ($vm in $vms) {
     Write-Host "$($vm.Name.PadRight(25)) Public IP: $pip   Private IP: $($vm.IP)"
 }
 
+# Win11 client (optional — only if image was available)
+$clientPipAddr = az network public-ip show `
+    --resource-group $RESOURCE_GROUP `
+    --name "$VM_CLIENT-pip" `
+    --query "ipAddress" -o tsv 2>$null
+if ($clientPipAddr) {
+    Write-Host "$($VM_CLIENT.PadRight(25)) Public IP: $clientPipAddr   Private IP: 10.10.1.50"
+}
+
 Write-Host ""
 Write-Host "Next step: run 02-config-dc.ps1 (connects via Azure VM Run Command)"
+Write-Host "Final step for PQC TLS verification: run 08-config-win11-client.ps1"
