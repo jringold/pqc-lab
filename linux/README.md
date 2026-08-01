@@ -94,15 +94,20 @@ cd pq-ca-azure/
 # Required
 export PROVIDER=liboqs          # or: symcrypt
 export ADMIN_IP="$(curl -s https://ifconfig.me)/32"
+export ADMIN_PASSWORD='ChangeMe-Strong-Passphrase-123!'
 
 # Optional
 export PREFIX=pq-ca
 export REGION=eastus
 export VM_SIZE=Standard_D4s_v5  # minimum — do not reduce for SymCrypt
+export SSH_KEY=~/.ssh/id_rsa
 
 ./01-azure-infra.sh             # provision 3 VMs + VNet + NSGs
 ./00-remote-deploy.sh           # build CA, deploy, verify
 ```
+
+`ADMIN_PASSWORD` is used to sign in to the Ubuntu desktop client over RDP.
+The orchestrator stages `SSH_KEY` on the CA VM temporarily so `04-issue-server-cert.sh --ssh-key ...` can push certs to the web VM.
 
 ### Expected output
 
@@ -156,6 +161,7 @@ RESULTS: 4/4 passed, 0 failed
   - Your SSH public key in `~/.ssh/authorized_keys`
 - A Hyper-V virtual switch (the built-in `Default Switch` works for most setups)
 - WSL or Git Bash for running `00-remote-deploy.sh`
+- A usable SSH private key for orchestration (`~/.ssh/id_rsa` by default, or set `SSH_KEY`)
 
 ### Prepare the base VHDX
 
@@ -176,13 +182,15 @@ cd pq-ca-hyperv\
   -BaseVhdx "C:\HyperV\BaseImages\ubuntu-26.04-template.vhdx" `
   -SwitchName "Default Switch" `
   -Provider "liboqs" `
-  -AdminUser "azureuser"
+  -AdminUser "azureuser" `
+  -MemoryGB 16
 ```
 
 ```bash
 # Step 2 — deploy everything (WSL or Git Bash)
 cd pq-ca-hyperv/
 chmod +x 00-remote-deploy.sh
+export SSH_KEY=~/.ssh/id_rsa
 ./00-remote-deploy.sh
 ```
 
