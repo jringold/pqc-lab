@@ -7,6 +7,11 @@
 > **Covers:** Both **Azure** and **Hyper-V** deployment paths.
 > **Environment:** 5-machine lab (Root CA, Domain Controller, Issuing CA, Web Server,
 > Windows 11 client).
+>
+> **WARNING** These files contain "Generic passwords" as placeholders, please be smart
+> and change them while you are setting up your test labs. I went through and did a
+> search and replace with something "generic", these passwords are not used in any
+> deployment, not even my own lab.
 
 ---
 
