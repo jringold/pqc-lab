@@ -12,6 +12,11 @@ includes a **Windows 11 client VM** for end-to-end browser-level PQC verificatio
 > for the ML-KEM TLS key exchange piece. ML-DSA certificate issuance still requires vNext 29550+ or
 > Server 2025 + KB5087539 on the CA servers.
 
+> **WARNING** These files contain "Generic passwords" as placeholders, please be smart
+> and change them while you are setting up your test labs. I went through and did a
+> search and replace with something "generic", these passwords are not used in any
+> deployment, not even my own lab.
+
 ---
 
 ## What this lab builds
