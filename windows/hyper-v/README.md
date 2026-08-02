@@ -1,10 +1,5 @@
 # PQC PKI Lab on Hyper-V (Windows Server 2025 GA + KB5099536 or vNext 29550+)
 
-> **WARNING** These files contain "Generic passwords" as placeholders, please be smart
-> and change them while you are setting up your test labs. I went through and did a
-> search and replace with something "generic", these passwords are not used in any
-> deployment, not even my own lab.
-
 This package provides a **Hyper-V alternative** to the Azure deployment flow.  
 It builds the same PKI topology for testing:
 

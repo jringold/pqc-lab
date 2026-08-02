@@ -35,6 +35,7 @@ $DomainName = "pqclab.local"
 $DomainNetbios = "PQCLAB"
 $DomainAdminUser = "Administrator"
 $SafeModePasswordPlain = "P@ssw0rd-DSRM-2026!"
+$SvcCaPasswordPlain    = "P@ssw0rd-SvcCA-2026!"  # svc-ca-enroll AD service account
 
 # Local administrator (inside each VM before domain join)
 $LocalAdminUser = "Administrator"

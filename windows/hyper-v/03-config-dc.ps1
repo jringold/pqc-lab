@@ -29,14 +29,15 @@ Invoke-InVmLocal -VmName $VmDc -ScriptBlock {
 }
 
 Write-Step "Creating domain service account for enrollment ops..."
-Invoke-InVmDomain -VmName $VmDc -ScriptBlock {
+Invoke-InVmDomain -VmName $VmDc -ArgumentList $SvcCaPasswordPlain -ScriptBlock {
+    param($SvcCaPass)
     Import-Module ActiveDirectory
     if (-not (Get-ADUser -Filter "SamAccountName -eq 'svc-ca-enroll'" -ErrorAction SilentlyContinue)) {
         New-ADUser `
             -Name "svc-ca-enroll" `
             -SamAccountName "svc-ca-enroll" `
             -UserPrincipalName "svc-ca-enroll@pqclab.local" `
-            -AccountPassword (ConvertTo-SecureString "P@ssw0rd-SvcCA-2026!" -AsPlainText -Force) `
+            -AccountPassword (ConvertTo-SecureString $SvcCaPass -AsPlainText -Force) `
             -Enabled $true `
             -PasswordNeverExpires $true `
             -Description "Service account for PKI test operations"
