@@ -13,6 +13,11 @@ status: growing
 
 # Azure VM Deployment Scripts — Post-Quantum CA Testing
 
+> **WARNING** These files contain "Generic passwords" as placeholders, please be smart
+> and change them while you are setting up your test labs. I went through and did a
+> search and replace with something "generic", these passwords are not used in any
+> deployment, not even my own lab.
+
 Scripts to automate provisioning and configuring Azure VMs for testing the [[pq-certificate-authority-ubuntu-2604|Post-Quantum CA guide]].
 
 ## Script Inventory
