@@ -83,7 +83,7 @@ New-ADUser ``
     -Name "svc-ca-enroll" ``
     -SamAccountName "svc-ca-enroll" ``
     -UserPrincipalName "svc-ca-enroll@$DOMAIN_NAME" ``
-    -AccountPassword (ConvertTo-SecureString "P@ssw0rd-SvcCA2026!" -AsPlainText -Force) ``
+    -AccountPassword (ConvertTo-SecureString "$SVC_CA_PASS" -AsPlainText -Force) ``
     -PasswordNeverExpires `$true ``
     -Enabled `$true ``
     -Description "Service account for CA auto-enrollment"

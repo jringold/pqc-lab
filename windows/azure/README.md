@@ -1,10 +1,5 @@
 # PQC PKI Lab — Azure Deployment Guide
 
-> **WARNING** These files contain "Generic passwords" as placeholders, please be smart
-> and change them while you are setting up your test labs. I went through and did a
-> search and replace with something "generic", these passwords are not used in any
-> deployment, not even my own lab.
-
 ## Scripts in this folder
 
 | Script | Purpose |

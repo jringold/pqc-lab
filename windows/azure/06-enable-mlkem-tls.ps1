@@ -51,14 +51,14 @@ Log "Setting registry keys for persistence (survives GP refresh)..."
 `$regBase = "HKLM:\SYSTEM\CurrentControlSet\Control\Cryptography\Configuration\Local\SSL\00010003"
 if (-not (Test-Path `$regBase)) { New-Item -Path `$regBase -Force | Out-Null }
 
-Set-ItemProperty -Path `$regBase -Name "Functions" -Value (
-    "x25519_mlkem768\0" +
-    "secp256r1_mlkem768\0" +
-    "secp384r1_mlkem1024\0" +
-    "NistP384\0" +
-    "NistP256\0" +
+Set-ItemProperty -Path `$regBase -Name "Functions" -Value @(
+    "x25519_mlkem768",
+    "secp256r1_mlkem768",
+    "secp384r1_mlkem1024",
+    "NistP384",
+    "NistP256",
     "x25519"
-) -Type String
+) -Type MultiString
 
 # Ensure TLS 1.3 is enabled (required for ML-KEM)
 Log "Verifying TLS 1.3 is enabled..."

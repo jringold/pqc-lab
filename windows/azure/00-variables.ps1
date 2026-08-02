@@ -22,6 +22,7 @@ $NSG_NAME         = "$PREFIX-nsg"
 # ----- Admin Credentials (CHANGE THESE) -------------------------------------
 $ADMIN_USER       = "labadmin"
 $ADMIN_PASS       = "P@ssw0rd-PQCLab2026!"      # Must meet Azure complexity rules
+$SVC_CA_PASS      = "P@ssw0rd-SvcCA2026!"       # svc-ca-enroll AD service account
 
 # ----- VM Names & Sizes ------------------------------------------------------
 $VM_ROOTCA        = "$PREFIX-rootca"
