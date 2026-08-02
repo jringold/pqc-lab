@@ -10,6 +10,11 @@ fully PQC-safe TLS 1.3 endpoint using NIST standards **FIPS 203 (ML-KEM)** and *
 > **July 14, 2026 update:** ML-KEM hybrid TLS is available in GA builds (Server 2025 + KB5099536,
 > Win11 24H2/25H2 + KB5101650). Insider builds are no longer required for the TLS key exchange path.
 
+> **WARNING** These files contain "Generic passwords" as placeholders, please be smart
+> and change them while you are setting up your test labs. I went through and did a
+> search and replace with something "generic", these passwords are not used in any
+> deployment, not even my own lab.
+
 ---
 
 ## Choose a Path
