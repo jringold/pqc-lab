@@ -14,6 +14,11 @@ status: evergreen
 
 # PQC PKI CA Lab — Manual Build Guide
 
+> **WARNING** These files contain "Generic passwords" as placeholders, please be smart
+> and change them while you are setting up your test labs. I went through and did a
+> search and replace with something "generic", these passwords are not used in any
+> deployment, not even my own lab.
+
 This guide walks through building the Post-Quantum PKI CA lab entirely by hand, without using the automated scripts. Use it to:
 
 - Understand every action the scripts perform
