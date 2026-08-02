@@ -13,6 +13,11 @@ status: growing
 
 # Hyper-V Deployment Scripts — Post-Quantum CA Testing
 
+> **WARNING** These files contain "Generic passwords" as placeholders, please be smart
+> and change them while you are setting up your test labs. I went through and did a
+> search and replace with something "generic", these passwords are not used in any
+> deployment, not even my own lab.
+
 This is the Hyper-V equivalent of the Azure automation flow. It provisions **three Ubuntu 26.04 VMs** on Hyper-V and runs the same PQ PKI build/deploy/verify pipeline:
 
 - `pq-hv-ca-vm` (Certificate Authority)
