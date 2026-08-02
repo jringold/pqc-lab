@@ -1,5 +1,10 @@
 # Post-Quantum Certificate Authority — Ubuntu 26.04 LTS
 
+> **WARNING** These files contain "Generic passwords" as placeholders, please be smart
+> and change them while you are setting up your test labs. I went through and did a
+> search and replace with something "generic", these passwords are not used in any
+> deployment, not even my own lab.
+
 Automated deployment of a post-quantum PKI stack on Ubuntu 26.04 LTS using either **LibOQS** or **Microsoft SymCrypt** as the OpenSSL 3.x provider. Deploys a full CA hierarchy (Root CA → Intermediate CA → Server Certificate) secured with **ML-DSA** keys, and an Apache 2.4 web server with **TLS 1.3 + ML-KEM** key exchange — proven end-to-end from a dedicated Ubuntu desktop client VM.
 
 Two deployment paths are provided. Both produce identical results; the only difference is where the VMs run.
